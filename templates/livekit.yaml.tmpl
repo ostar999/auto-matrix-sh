@@ -1,0 +1,16 @@
+# LiveKit SFU —— 由 install.sh 生成
+port: 7880
+
+rtc:
+  port_range_start: 50000
+  port_range_end: 50100
+  tcp_port: 7881
+  # 云服务器公网 IP 不在网卡上时靠 STUN 发现
+  use_external_ip: true
+
+keys:
+  @LIVEKIT_KEY@: @LIVEKIT_SECRET@
+
+logging:
+  level: info
+  json: false

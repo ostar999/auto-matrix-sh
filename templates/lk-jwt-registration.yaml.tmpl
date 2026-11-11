@@ -1,0 +1,20 @@
+# lk-jwt-service 的 application service 注册 —— 由 install.sh 生成
+id: "lk-jwt-service"
+as_token: "@SECRET_AS@"
+hs_token: "@SECRET_HS@"
+sender_localpart: "_lk_jwt_service"
+
+namespaces:
+  users:
+    - exclusive: false
+      regex: ".*"
+
+url: null
+
+# 允许 lk-jwt 查询「某用户是否在某房间」
+io.element.msc4502.scopes:
+  - "urn:matrix:client:io.element.msc4502:rooms:is_joined"
+
+# Synapse 把 /_matrix/client/v1/rtc/livekit/... 反代给 lk-jwt
+io.element.msc4512.proxy_prefix: "rtc/livekit"
+io.element.msc4512.proxy_url: "http://lk-jwt:8080"

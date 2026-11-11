@@ -1,0 +1,116 @@
+# ============================================================================
+#  Matrix 全栈 —— 由 install.sh 渲染，请勿手工修改（改模板后重跑 --render）
+#
+#  @WEB_HOST@     Element 网页 + server_name
+#  @API_HOST@     Matrix API + 媒体 + LiveKit 路径 + TURN
+#  @ADMIN_HOST@   管理后台
+# ============================================================================
+name: matrix
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: synapse
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      POSTGRES_DB: synapse
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+      TZ: ${TZ:-Asia/Shanghai}
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U synapse -d synapse"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks: [matrixnet]
+    logging: &log
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  synapse:
+    image: matrixdotorg/synapse:${SYNAPSE_VERSION:-v1.164.2}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SYNAPSE_CONFIG_PATH: /data/homeserver.yaml
+      TZ: ${TZ:-Asia/Shanghai}
+    volumes:
+      - ./data/synapse:/data
+      - ./synapse/homeserver.yaml:/data/homeserver.yaml:ro
+      - ./livekit/lk-jwt-registration.yaml:/data/lk-jwt-registration.yaml:ro
+    ports:
+      - "127.0.0.1:9108:8008"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fSs http://localhost:8008/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 90s
+    networks: [matrixnet]
+    logging: *log
+
+  element:
+    image: vectorim/element-web:${ELEMENT_VERSION:-v1.12.33}
+    restart: unless-stopped
+    volumes:
+      - ./element/config.json:/app/config.json:ro
+    ports:
+      - "127.0.0.1:9180:80"
+    networks: [matrixnet]
+    logging: *log
+
+  synapse-admin:
+    image: awesometechnologies/synapse-admin:${ADMIN_VERSION:-0.11.4}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:9182:80"
+    networks: [matrixnet]
+    logging: *log
+
+  livekit:
+    image: livekit/livekit-server:${LIVEKIT_VERSION:-v1.13}
+    restart: unless-stopped
+    command: ["--config", "/etc/livekit.yaml"]
+    volumes:
+      - ./livekit/livekit.yaml:/etc/livekit.yaml:ro
+    ports:
+      - "127.0.0.1:7880:7880"
+      - "7881:7881"
+      - "50000-50100:50000-50100/udp"
+    networks: [matrixnet]
+    logging: *log
+
+  lk-jwt:
+    image: ghcr.io/element-hq/lk-jwt-service:${LKJWT_VERSION:-0.9.0}
+    restart: unless-stopped
+    environment:
+      LIVEKIT_URL: "wss://${API_FQDN}/livekit/sfu"
+      LIVEKIT_KEY: ${LIVEKIT_KEY:?}
+      LIVEKIT_SECRET: ${LIVEKIT_SECRET:?}
+      LIVEKIT_HS_SERVER_NAME: "${WEB_FQDN}"
+      LIVEKIT_FULL_ACCESS_HOMESERVERS: "${WEB_FQDN}"
+      LIVEKIT_AS_REGISTRATION_FILE: "/etc/lk-jwt/registration.yaml"
+    volumes:
+      - ./livekit/lk-jwt-registration.yaml:/etc/lk-jwt/registration.yaml:ro
+    ports:
+      - "127.0.0.1:8080:8080"
+    networks: [matrixnet]
+    logging: *log
+
+  coturn:
+    image: coturn/coturn:${COTURN_VERSION:-4.6.3}
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
+    command: ["-c", "/etc/coturn/turnserver.conf"]
+    logging: *log
+
+networks:
+  matrixnet:

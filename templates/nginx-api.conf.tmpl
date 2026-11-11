@@ -1,0 +1,37 @@
+# ============================================================================
+#  @API_FQDN@ —— Matrix API + 媒体（大文件）+ LiveKit 信令 + TURN 主机名
+#  由 install.sh 生成
+#
+#  这个域名必须走「仅 DNS（灰云）」，否则大文件会被 Cloudflare 卡在 100MB
+# ============================================================================
+server {
+    listen 80;
+    server_name @API_FQDN@;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name @API_FQDN@;
+
+    ssl_certificate     @SSL_CERT@;
+    ssl_certificate_key @SSL_KEY@;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+
+    # ★ 上传无限制的两个关键
+    client_max_body_size 0;
+    proxy_request_buffering off;
+
+@LIVEKIT_BLOCK@
+    location / {
+        proxy_pass http://127.0.0.1:9108;
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_connect_timeout 30s;
+        proxy_send_timeout    3600s;
+        proxy_read_timeout    600s;
+    }
+}

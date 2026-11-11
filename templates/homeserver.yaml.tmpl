@@ -1,0 +1,72 @@
+# ============================================================================
+#  Synapse —— server_name = @WEB_FQDN@
+#  由 install.sh 生成，占位符已替换；密钥均为本机随机生成
+# ============================================================================
+
+server_name: "@WEB_FQDN@"
+public_baseurl: "https://@API_FQDN@/"
+
+# 私有服务器，关闭联邦
+federation_domain_whitelist: []
+trusted_key_servers: []
+suppress_key_server_warning: true
+
+report_stats: false
+pid_file: /data/homeserver.pid
+
+listeners:
+  - port: 8008
+    type: http
+    tls: false
+    bind_addresses: ["0.0.0.0"]
+    x_forwarded: true
+    resources:
+      - names: [client, federation]
+        compress: false
+
+database:
+  name: psycopg2
+  args:
+    user: synapse
+    password: "@SECRET_DB@"
+    database: synapse
+    host: postgres
+    cp_min: 5
+    cp_max: 10
+
+media_store_path: /data/media_store
+max_upload_size: @MAX_UPLOAD_SIZE@
+max_image_pixels: 128M
+
+# ---------------------------------------------------------------------------
+# 1:1 语音/视频通话的 TURN
+# ---------------------------------------------------------------------------
+@TURN_BLOCK@
+
+# ---------------------------------------------------------------------------
+# Element Call（群组通话 / 手机端）
+# ---------------------------------------------------------------------------
+experimental_features:
+  msc4143_enabled: true
+@RTC_EXPERIMENTAL@
+
+max_event_delay_duration: 24h
+
+rc_message:
+  per_second: 0.5
+  burst_count: 30
+
+rc_delayed_event_mgmt:
+  per_second: 1
+  burst_count: 20
+
+@MATRIX_RTC_BLOCK@
+
+@APP_SERVICE_BLOCK@
+
+enable_registration: false
+registration_shared_secret: "@SECRET_REG@"
+
+signing_key_path: "/data/@WEB_FQDN@.signing.key"
+macaroon_secret_key: "@SECRET_MAC@"
+form_secret: "@SECRET_FORM@"
