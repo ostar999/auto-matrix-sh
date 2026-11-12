@@ -351,38 +351,65 @@ ip link set dev eth0 mtu 1300
 
 默认的 1460 字节分段会被中间设备静默丢弃，TCP 只能无限重传。
 
-### 6.2 云厂商默认只开 SSH 端口
+### 6.2 云厂商默认只开 SSH 端口（RackSmart 实测）
 
 **现象**：脚本自检 6 项全部通过，但公网访问 Element 返回 **522**，
 直连 `chatapi` 域名 TLS 握手失败（curl exit 35）。
 
-**原因**：服务器网卡上是公网 IP（`ip addr` 显示 `107.x.x.x/26`），
-不是 NAT，主机防火墙也是空的（`iptables -L` 无规则、`ufw inactive`），
-但 80/443 从外部连不上——**拦截在云厂商的上层防火墙**。
+**三步定位**
 
-两台测试服务器（香港 dedirock、加州）都是这个情况：
-只开放了 SSH 端口，80/443 和 UDP 段都要在控制台手动放行。
-
-**验证方法**
+1. 先排除主机防火墙 —— ufw 规则明明是对的：
 
 ```bash
-# 本机自检通过（hairpin，绕过云防火墙）
-curl --resolve chat.example.com:443:127.0.0.1 https://chat.example.com/   # 200
-
-# 外部访问失败
-curl https://chat.example.com/                                          # 522
+ufw status verbose
+# 80/tcp  ALLOW IN  Anywhere
+# 443/tcp ALLOW IN  Anywhere
 ```
 
-把两者对比一下就能确认是云防火墙，不是服务问题。
+2. 再抓包，看数据包到底有没有进来：
 
-**修复**：到服务器控制台放行
+```bash
+# 服务器上
+tcpdump -ni ens7 -c 10 "tcp port 80 or tcp port 443"
+
+# 本机同时发起访问
+curl -m 4 http://<公网IP>/
+```
+
+结果是 **`0 packets captured`** —— 请求根本没到达网卡。
+
+3. 结论：拦截在服务商的网络层，服务器内部改不了。
+
+**RackSmart 的具体位置**
 
 ```
-TCP 80, 443, 7881, 3478
-UDP 3478, 49160-49200, 50000-50100
+客户中心 → 产品管理 → VPS → 产品详情
+  → 右侧标签「安全组」→ 管理 → 添加
 ```
 
-脚本的自检会区分「本机检查」和「公网可达性」，后者失败时明确提示去开端口。
+默认策略只有这些入站规则，没有 80/443：
+
+```
+tcp 22      tcp 29038    tcp 3389    udp 68    icmp
+```
+
+需要补的 7 条：
+
+| 方向 | 协议 | 端口 | 用途 |
+| --- | --- | --- | --- |
+| 进 | TCP | 80 | HTTP / ACME |
+| 进 | TCP | 443 | HTTPS |
+| 进 | TCP | 7881 | LiveKit TCP 兜底 |
+| 进 | TCP | 3478 | TURN |
+| 进 | UDP | 3478 | TURN |
+| 进 | UDP | 49160-49200 | TURN 中继 |
+| 进 | UDP | 50000-50100 | LiveKit 媒体 |
+
+补完后 `nc -z <ip> 443` 立刻变 OPEN，页面可用。
+
+> 台湾/香港这类 VPS 常见形态：网卡上是公网 IP、主机防火墙空、
+> 但上层安全组只放行 SSH。判断口诀：
+> **ufw 放行 + tcpdump 收不到包 = 服务商安全组**。
 
 ### 6.3 云安全组 ≠ 主机防火墙
 

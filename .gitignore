@@ -1,0 +1,45 @@
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.ipynb_checkpoints/
+
+# ===== 生成 / 临时产物 =====
+*.log
+*.tmp
+*.bak
+
+# ===== macOS / Windows / 编辑器 =====
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.iml
+
+# ===== Node =====
+node_modules/
+
+# ===== 系统 =====
+.k8s-utils-kubectl-share/
+
+# 根目录ai规范
+/.claude/
+/.agents/
+
+# 大文件
+.docx
+.pdf
+.zip
+.mp4
+
+# 调试截图与录屏不进仓库
+work-space/shots/
+docs/videos/
+
+# 打包产物
+*.tgz
