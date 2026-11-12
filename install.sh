@@ -544,29 +544,55 @@ panel_prepare() {
   ok "1Panel OpenResty 就绪"
   dim "站点配置已生成在 $INSTALL_DIR/nginx/"
 
+  cat > "$INSTALL_DIR/renew-hook.sh" <<'HOOK'
+#!/bin/bash
+# acme.sh 续期后：把证书同步到 1Panel 各站点目录，再重载 OpenResty
+set -e
+SRC=/etc/nginx/ssl/matrix
+for d in /opt/1panel/www/sites/*/ssl; do
+  [ -d "$d" ] || continue
+  cp "$SRC/fullchain.pem" "$d/fullchain.pem" 2>/dev/null || true
+  cp "$SRC/privkey.pem"  "$d/privkey.pem" 2>/dev/null || true
+done
+ct=$(docker ps --format '{{.Names}}' | grep -i openresty | head -1)
+if [ -n "$ct" ]; then docker exec "$ct" openresty -s reload; fi
+echo "renew-hook done"
+HOOK
+  chmod +x "$INSTALL_DIR/renew-hook.sh"
+  ok "续期钩子已生成: $INSTALL_DIR/renew-hook.sh"
+
   cat <<EOF
 
-  ${c_yel}接下来在 1Panel 里建 3 个站点（约 3 分钟）${c_reset}
+  ${c_yel}在 1Panel 里建 3 个站点（约 3 分钟）${c_reset}
 
-  1) 应用商店 → 安装 OpenResty（已完成可跳过）
-  2) 网站 → 创建 → 反向代理，建三个站点：
+  1) 网站 → 创建 → 反向代理，建三个站点：
 
-     域名                       代理地址
-     ---------------------------------------------
-     $WEB_FQDN        http://127.0.0.1:9180
-     $API_FQDN        http://127.0.0.1:9108
-     $ADMIN_FQDN      http://127.0.0.1:9182
+       域名                     代理地址
+       ---------------------------------------------
+       $WEB_FQDN      http://127.0.0.1:9180
+       $API_FQDN      http://127.0.0.1:9108
+       $ADMIN_FQDN    http://127.0.0.1:9182
 
-  3) 把 $INSTALL_DIR/nginx/ 下对应 .conf 里的 location 段
-     粘进各站点的「配置文件」，重点两行（API 站点必须有）：
+  2) 证书 → 上传证书，填：
+       证书: $SSL_CERT
+       私钥: $SSL_KEY
+     然后各站点 → HTTPS → 打开开关 → 保存
 
-       client_max_body_size 0;
-       proxy_request_buffering off;
+  3) 后台站点 → 密码访问 → 创建用户 → 打开开关（否则管理面板裸奔）
 
-  4) 证书：网站 → 证书 → 上传证书，
-     选 /etc/nginx/ssl/matrix/{fullchain.pem,privkey.pem}
+  4) API 站点：把 $INSTALL_DIR/nginx/$API_FQDN.conf 里的
+     /livekit/sfu/、/livekit/jwt/ 两个 location 和
+     client_max_body_size 0 / proxy_request_buffering off
+     写进 1Panel 的 /www/sites/<代号>/proxy/root.conf
+     （UI 改代理会重新生成该文件，改完要回填）
 
-  5) 各站点 → HTTPS → 选择这张证书 → 开启
+  5) 网页站点：加 /www/sites/<代号>/proxy/zz-wellknown.conf，
+     内容见 $INSTALL_DIR/nginx/ 下的片段
+
+  6) 续期钩子：把 acme.sh 的 reloadcmd 指向
+     $INSTALL_DIR/renew-hook.sh（同步证书到 1Panel 各站点并重载）
+
+  脚本已经把上述片段都生成好了，照着贴即可。
 
 EOF
 }

@@ -346,7 +346,28 @@ bash install.sh --panel standalone  # 现状，独立 nginx
 **为什么不能全自动**：1Panel 的站点存在它自己的库里，API Key 在
 `core.db` 的 `api_keys.secret_ciphertext` 中是加密的，脚本既读不到也造不出。
 
-### 5.6 1Panel 的 conf.d 会被面板覆盖
+### 5.6 1Panel 的站点结构（实测）
+
+1Panel 每个站点拆成两部分：
+
+```
+/opt/1panel/www/conf.d/<代号>.conf           server 块，末尾 include proxy/*.conf
+/opt/1panel/www/sites/<代号>/proxy/root.conf 反向代理 location
+/opt/1panel/www/sites/<代号>/ssl/            该站点专用的证书副本
+```
+
+关键点：
+
+1. **`proxy/*.conf` 是被 include 的**，往里加文件不会被面板覆盖，
+   放 `zz-wellknown.conf` 这类自定义 location 最合适。
+2. **`root.conf` 会被重新生成** —— 在 UI 里改一次该站点的反向代理，
+   内容就被重置，自定义的 location 全部丢失。改完必须回填。
+3. **证书是复制过去的**：站点 SSL 目录里是独立副本，
+   acme.sh 续期后不会自动同步，必须挂 `--reloadcmd` 钩子去 `cp` + reload。
+4. **后台鉴权用「密码访问」功能**，它底层就是 `auth_basic`，
+   但创建用户之后**还要把那个小开关打开**，否则不生效（实测踩到）。
+
+### 5.7 1Panel 的 conf.d 会被面板覆盖
 
 手写 `/opt/1panel/www/conf.d/*.conf` 后，只要在 1Panel 界面
 改一次该站点的域名/HTTPS，配置就会被重新生成、自定义部分丢失。

@@ -125,6 +125,14 @@ bash install.sh --panel standalone  # 用独立 nginx
 - ❌ 不装宿主机 nginx（避免和 1Panel 抢 80/443）
 - ⏸ 最后会打印「在 1Panel 里建 3 个站点」的步骤，由你点 3 次完成
 
+**1Panel 模式建完站后，还要做三件事**（脚本会打印清单）：
+
+1. 证书上传后，各站点 HTTPS 开关打开；
+2. API 站点补 `/livekit/sfu/`、`/livekit/jwt/` 和 `client_max_body_size 0`；
+3. 后台站点开「密码访问」，否则面板裸奔。
+
+续期钩子 `renew-hook.sh` 会自动生成，把 acme.sh 的 reloadcmd 指向它即可。
+
 > 为什么不能全自动？1Panel 的站点记录在它自己的数据库里，
 > API Key 在库里是加密存储的（`api_keys.secret_ciphertext`），
 > 脚本无法自行生成或读取。所以 1Panel 模式做成「半自动」：
