@@ -50,12 +50,24 @@
 
 ## 三、快速开始
 
-### 3.1 上传脚本
+### 3.1 一条命令（不用 clone）
+
+在服务器上以 root 运行：
 
 ```bash
-scp -r 3-auto-matrix-sh root@你的服务器:/root/auto-matrix
-ssh root@你的服务器
-cd /root/auto-matrix
+bash -c "$(curl -sSL https://raw.githubusercontent.com/ostar999/auto-matrix-sh/main/install.sh)" _ --domain example.com
+```
+
+- 脚本会自动下载模板到 `/tmp/auto-matrix-sh/`
+- `_` 后面的内容原样传给脚本（当作命令行参数）
+- 不给参数就是全交互模式：`bash -c "$(curl -sSL .../install.sh)"`
+
+### 3.1b 或者 clone 下来跑
+
+```bash
+git clone https://github.com/ostar999/auto-matrix-sh.git
+cd auto-matrix-sh
+sudo bash install.sh
 ```
 
 ### 3.2 交互式运行（推荐第一次用）

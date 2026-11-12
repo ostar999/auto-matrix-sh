@@ -12,9 +12,20 @@
 # =============================================================================
 set -Eeuo pipefail
 
-VERSION="1.0.0"
-SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-TEMPLATE_DIR="$SCRIPT_DIR/templates"
+VERSION="1.1.0"
+REPO="ostar999/auto-matrix-sh"
+REPO_REF="${AUTO_MATRIX_REF:-main}"
+TEMPLATE_CACHE="${AUTO_MATRIX_CACHE:-/tmp/auto-matrix-sh}"
+
+# 本地执行（git clone 后 bash install.sh）指向脚本所在目录；
+# 单行命令执行（bash -c "$(curl ...)"）时 BASH_SOURCE 为空，改为下载模板
+SCRIPT_SRC="${BASH_SOURCE[0]:-}"
+if [[ -n $SCRIPT_SRC && -f $SCRIPT_SRC ]]; then
+  SCRIPT_DIR="$(cd -- "$(dirname -- "$SCRIPT_SRC")" && pwd)"
+else
+  SCRIPT_DIR=""
+fi
+TEMPLATE_DIR="${SCRIPT_DIR:+$SCRIPT_DIR/templates}"
 
 # ---------------------------------------------------------------- 默认参数
 DOMAIN=""
@@ -167,6 +178,32 @@ print($2)
 }
 
 # ---------------------------------------------------------------- 预检
+
+fetch_templates() {
+  [[ -n $TEMPLATE_DIR && -d $TEMPLATE_DIR ]] && return 0
+
+  step "获取配置模板"
+  if [[ -d $TEMPLATE_CACHE/templates ]]; then
+    TEMPLATE_DIR="$TEMPLATE_CACHE/templates"
+    ok "复用缓存 $TEMPLATE_DIR"
+    return 0
+  fi
+
+  mkdir -p "$TEMPLATE_CACHE"
+  local url="https://codeload.github.com/$REPO/tar.gz/refs/heads/$REPO_REF"
+  local tgz="$TEMPLATE_CACHE/src.tgz"
+  dim "下载 $url"
+  curl -fsSL --max-time 90 "$url" -o "$tgz" \
+    || die "模板下载失败。可改用：git clone https://github.com/$REPO.git && cd auto-matrix-sh && sudo bash install.sh"
+  tar xzf "$tgz" -C "$TEMPLATE_CACHE" --strip-components=1 \
+    || die "模板解压失败"
+  rm -f "$tgz"
+
+  [[ -d $TEMPLATE_CACHE/templates ]] || die "压缩包里没有 templates 目录"
+  TEMPLATE_DIR="$TEMPLATE_CACHE/templates"
+  ok "模板已就绪（$TEMPLATE_DIR）"
+}
+
 preflight() {
   step "环境检查"
 
@@ -214,6 +251,7 @@ preflight() {
     done
   fi
 
+  fetch_templates
   [[ -d $TEMPLATE_DIR ]] || die "找不到模板目录: $TEMPLATE_DIR"
   ok "模板目录 $TEMPLATE_DIR"
 }
