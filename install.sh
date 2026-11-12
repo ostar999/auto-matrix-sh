@@ -202,6 +202,9 @@ preflight() {
         owner=$(ss -tlnpH "sport = :$p" 2>/dev/null | grep -o 'users:(("[^"]*"' | head -1 | tr -d 'users:(("')
         if [[ $owner == nginx* && -d $INSTALL_DIR/nginx ]]; then
           ok "端口 $p 由本机已有的 Matrix nginx 占用，将复用"
+        elif [[ $owner == *openresty* || $owner == opnty* || $owner == openresty* ]]; then
+          ok "端口 $p 由 1Panel 的 OpenResty 占用（1Panel 模式）"
+          [[ $PANEL_MODE == standalone ]] && die "当前是 standalone 模式，但 80/443 被 1Panel 占着。请用 --panel 1panel，或先停掉 OpenResty"
         else
           die "端口 $p 被 ${owner:-未知进程} 占用，请先停掉它（例如 1Panel 的 OpenResty）"
         fi
@@ -868,13 +871,17 @@ main() {
   fi
   case $PANEL_MODE in
     install-1panel) (( DRY_RUN )) || install_1panel ;;
-    1panel)         (( DRY_RUN )) || panel_prepare ;;
+    1panel)         : ;;  # 等配置渲染完再检查并打印清单
     standalone)     (( DRY_RUN )) || ensure_nginx ;;
     *) die "未知的 --panel 值: $PANEL_MODE（auto|1panel|standalone）" ;;
   esac
 
   dns_setup
   render_files
+
+  if [[ $PANEL_MODE == 1panel ]] && (( ! DRY_RUN )); then
+    panel_prepare
+  fi
 
   if (( DRY_RUN )); then
     step "dry-run 结束"
