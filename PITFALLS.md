@@ -319,7 +319,34 @@ issue_cert       # 此时 nginx 已存在，reload 不会失败
 setup_nginx      # 写站点配置 + reload
 ```
 
-### 5.5 1Panel 的 conf.d 会被面板覆盖
+### 5.5 宿主机 nginx 和 1Panel 抢 80/443
+
+**现象**：装完脚本后打开 1Panel → 网站，顶部提示
+
+```
+未检测到 OpenResty，请进入应用商店点击安装！
+```
+
+**原因**：脚本为了通用性在宿主机 `apt install nginx`，它占着 80/443。
+1Panel 的站点管理依赖它自己的 OpenResty（容器，host 网络），抢不到端口，
+于是 1Panel 认为 OpenResty 没装，网站功能完全不可用。
+
+**教训**：一台机器上「宿主机 nginx」和「1Panel OpenResty」只能留一个。
+
+**修复**：脚本新增 `--panel` 参数：
+
+```bash
+bash install.sh --panel 1panel      # 不装宿主机 nginx，交给 1Panel
+bash install.sh --panel standalone  # 现状，独立 nginx
+```
+
+1Panel 模式下脚本只准备到「片段已生成」，最后三步在面板里点：
+建站点 → 传证书 → 开 HTTPS。
+
+**为什么不能全自动**：1Panel 的站点存在它自己的库里，API Key 在
+`core.db` 的 `api_keys.secret_ciphertext` 中是加密的，脚本既读不到也造不出。
+
+### 5.6 1Panel 的 conf.d 会被面板覆盖
 
 手写 `/opt/1panel/www/conf.d/*.conf` 后，只要在 1Panel 界面
 改一次该站点的域名/HTTPS，配置就会被重新生成、自定义部分丢失。

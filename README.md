@@ -97,6 +97,49 @@ bash install.sh --dry-run --skip-dns --non-interactive \
 # 配置会渲染到 /opt/matrix，但不启动任何服务
 ```
 
+## 三·五、网站由谁托管（重要）
+
+脚本会先判断这台机器上有没有 1Panel，再决定网站交给谁：
+
+| 模式 | 触发条件 | 80/443 归谁 | 1Panel 里能看到站点吗 |
+| --- | --- | --- | --- |
+| `standalone` | 没有 1Panel | 脚本装的 nginx | ❌ 看不到 |
+| `1panel` | 装了 1Panel | 1Panel 的 OpenResty | ✅ 能看到、能管理 |
+| `install-1panel` | 想装 1Panel | 装完由你初始化 | ✅ |
+
+选择逻辑：
+
+```bash
+# 交互式：检测到 1Panel 会问你要不要用它管理
+bash install.sh
+
+# 显式指定
+bash install.sh --panel 1panel      # 用 1Panel 管理
+bash install.sh --panel standalone  # 用独立 nginx
+```
+
+**1Panel 模式做什么 / 不做什么**
+
+- ✅ 起容器、建 DNS、签证书、建管理员
+- ✅ 把三个站点的 nginx 片段生成到 `/opt/matrix/nginx/`
+- ❌ 不装宿主机 nginx（避免和 1Panel 抢 80/443）
+- ⏸ 最后会打印「在 1Panel 里建 3 个站点」的步骤，由你点 3 次完成
+
+> 为什么不能全自动？1Panel 的站点记录在它自己的数据库里，
+> API Key 在库里是加密存储的（`api_keys.secret_ciphertext`），
+> 脚本无法自行生成或读取。所以 1Panel 模式做成「半自动」：
+> 脚本把该准备的都准备好，你在面板里点三下即可。
+
+**从 standalone 切到 1panel**
+
+```bash
+systemctl disable --now nginx      # 让出 80/443
+# 1Panel 应用商店装 OpenResty
+bash install.sh --panel 1panel     # 重新跑一遍
+```
+
+数据卷不会丢，容器会自动重建。
+
 ## 四、参数
 
 | 参数 | 说明 | 默认 |
@@ -113,6 +156,8 @@ bash install.sh --dry-run --skip-dns --non-interactive \
 | `--dir` | 安装目录 | `/opt/matrix` |
 | `--max-upload` | 单文件上限 | `2G` |
 | `--ip` | 公网 IP | 自动探测 |
+| `--panel` | `auto` / `1panel` / `standalone` | `auto` |
+| `--panel-api-key` | 1Panel API Key（预留，暂未用于自动建站） | — |
 | `--skip-dns` | 不建 DNS 记录 | — |
 | `--skip-rtc` | 不装 LiveKit/coturn | — |
 | `--no-proxy-web` | 网页域名也不走 CF 代理 | — |
